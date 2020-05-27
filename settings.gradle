@@ -1,0 +1,3 @@
+rootProject.name='CovidApp'
+include ':mobile'
+include ':wear'
