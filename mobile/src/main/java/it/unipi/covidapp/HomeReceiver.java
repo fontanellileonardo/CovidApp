@@ -1,3 +1,10 @@
+/*
+Broadcast receiver that filters the intent addressed to our module when the user is at home and
+starts hands activity detection.
+Filters also intent containing results when an activity is recognized by the classifier.
+ */
+
+
 package it.unipi.covidapp;
 
 import android.content.BroadcastReceiver;
@@ -11,8 +18,15 @@ public class HomeReceiver extends BroadcastReceiver {
     public void onReceive(Context context, Intent intent) {
         action = intent.getAction();
         System.out.println("Action received: " + action);
-        Intent startService = new Intent(context, HandActivityService.class);
-        context.startService(startService);
+        //TODO: Cancellare questa action dall'app vera
+        if(intent.getAction() != null && action.compareTo("hand_activity_detection") == 0) {
+            System.out.println("Activity detected: "+intent.getIntExtra("wash_hand", -1));
+        }
+        else if(intent.getAction() != null && action.compareTo("UserInHome") == 0){
+            Intent startService = new Intent(context, HandActivityService.class);
+            startService.setAction("Start_HandActivityService");
+            context.startService(startService);
+        }
     }
 
 }

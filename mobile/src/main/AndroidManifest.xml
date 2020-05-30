@@ -20,8 +20,12 @@
         <receiver android:name=".HomeReceiver">
             <intent-filter>
                 <action android:name="UserInHome" />
+                <!--TODO: Cancellare la detection -->
+                <action android:name="hand_activity_detection" />
             </intent-filter>
         </receiver>
+
+        <service android:name=".ClassificationService"/>
 
         <service android:name=".HandActivityService">
             <intent-filter>
@@ -32,6 +36,9 @@
         </service>
     </application>
 
+
+
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
 
 </manifest>

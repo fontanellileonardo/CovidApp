@@ -1,17 +1,22 @@
+/*
+- Instantiates the Homereceiver and emulates the intent sent when the user has return to his house
+- Stop the HandActivityService when the application is closed by the user.
+ */
+
+
 package it.unipi.covidapp;
 
 import androidx.appcompat.app.AppCompatActivity;
-import weka.classifiers.trees.RandomForest;
-
 import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
 
 public class MainActivity extends AppCompatActivity {
 
-    private static final String TAG = "HandActivity";
+    private static final String TAG = "MainHandActivity";
 
     private HomeReceiver hr;
+    private FeatureExtraction fe;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {

@@ -1,10 +1,16 @@
+/*
+WearableListenerService that manages the communication between mobile phone and smartwatch.
+Starts sampling on smartwatch when the user is at home and stops it when a wash hand activity is recognized or when
+the timer expired or the application is closed.
+Save data received from the smartwatch and sends an intent to ClassificationService in order to starts
+features extraction and classification operations.
+Sends the result of the activity classification in broadcast.
+ */
+
 package it.unipi.covidapp;
 
 import android.app.Service;
-import android.content.BroadcastReceiver;
-import android.content.Context;
 import android.content.Intent;
-import android.graphics.Bitmap;
 import android.os.AsyncTask;
 import android.util.Log;
 
@@ -41,7 +47,7 @@ import androidx.annotation.NonNull;
 
 public class HandActivityService extends WearableListenerService {
 
-    private static final String TAG = "HandService";
+    private static final String TAG = "HandActivityService";
 
     // Name of capability listed in Wear app's wear.xml.
     private static final String CAPABILITY_WEAR_APP = "hand_activity_wear";
@@ -60,7 +66,7 @@ public class HandActivityService extends WearableListenerService {
     private static final String SENSOR_DATA_LIN_KEY = "linear";
 
     private File storagePath;
-    private boolean status;
+    private int counter;
 
     //Save the state of the detection and send it for risk index computation
     private int detectedActivity;
@@ -72,22 +78,35 @@ public class HandActivityService extends WearableListenerService {
     private TimerTask timerTask;
 
 
-    private RandomForestClassifier classifier;
-    private FeatureExtraction fe;
-
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         super.onStartCommand(intent, flags, startId);
-        Log.d(TAG,"Service started");
-        detectedActivity = -1;
-        dataClient = Wearable.getDataClient(this);
-        fe = new FeatureExtraction(getApplicationContext());
-        storagePath = getExternalFilesDir(null);
-        checkIfWatchHasApp();
+        Log.d(TAG,"onStartCommand");
+        //Intent received from the ClassificationService with the result of activity recognition
+        if(intent.getAction() != null && intent.getAction().compareTo("Classification_Result") == 0) {
+            if(intent.getStringExtra("activity_key").compareTo("WASHING_HANDS") == 0) {
+                Log.d(TAG, "WASHING_HANDS detected");
+                //Stop the sampling on the smartwatch when washing hands is detected
+                notifyWatch(Configuration.STOP);
+                detectedActivity = Configuration.WASHING_HANDS;
+            }
+            else if(intent.getStringExtra("activity_key").compareTo("OTHERS") == 0) {
+                Log.d(TAG,"OTHERS detected");
+                if(detectedActivity != Configuration.WASHING_HANDS)
+                    detectedActivity = Configuration.OTHERS;
+            }
+        }
+        else if(intent.getAction() != null && intent.getAction().compareTo("Start_HandActivityService") == 0){
+            counter = 0;
+            detectedActivity = -1;
+            dataClient = Wearable.getDataClient(this);
+            storagePath = getExternalFilesDir(null);
+            checkIfWatchHasApp();
+        }
         return Service.START_STICKY;
     }
 
-    // Verify if the corresponding app is installed in the mobile phone
+    // Verify if the corresponding app is installed in a nearby smartwatch
     private void checkIfWatchHasApp() {
         // The full set of nodes that declare the given capability will be included in the capability's
         Task<CapabilityInfo> capabilityInfoTask = Wearable.getCapabilityClient(this)
@@ -104,6 +123,7 @@ public class HandActivityService extends WearableListenerService {
                     if(!capabilityInfo.getNodes().isEmpty()) {
                         watchNodeID = ((Node) capabilityInfo.getNodes().toArray()[0]).getId();
                         Log.d(TAG, "watchId: "+watchNodeID);
+                        //If a connected watch is detected the mobile asks it to start collecting data
                         notifyWatch(Configuration.START);
                     }
                 } else {
@@ -131,8 +151,9 @@ public class HandActivityService extends WearableListenerService {
                         }
                     });
 
-            if(start == Configuration.START)
+            if(start == Configuration.START) {
                 initializeTimer();
+            }
         } else {
             Log.d(TAG,"No devices connected");
         }
@@ -146,21 +167,23 @@ public class HandActivityService extends WearableListenerService {
             Log.d(TAG,"Error in sending stop intent");
     }
 
+    //Send the broadcast intent for the risk index computation with the result of classification
     private void sendDetection(int result) {
-        //Send the intent for the risk index computation
         Intent intent = new Intent();
         intent.setAction("hand_activity_detection");
         intent.putExtra("wash_hand",result);
         detectedActivity = -1;
+        sendBroadcast(intent);
     }
 
+    //Initialize the max time interval in which a user should wash his hands when he comes home
     private void initializeTimer() {
         timerTask = new TimerTask() {
             @Override
             public void run() {
-                if(detectedActivity == Configuration.OTHERS){
+                if(detectedActivity != -1){
                     //TODO:Send to smartwatch no hand
-                    sendDetection(Configuration.OTHERS);
+                    sendDetection(detectedActivity);
                 }
                 selfStop();
             }
@@ -170,6 +193,7 @@ public class HandActivityService extends WearableListenerService {
 
     }
 
+    //Handle the messages received from the smartwatch
     @Override
     public void onDataChanged(@NonNull DataEventBuffer dataEventBuffer) {
         Log.d(TAG, "Message Received");
@@ -189,39 +213,26 @@ public class HandActivityService extends WearableListenerService {
 
                     // Loads files.
                     new LoadFileTask().execute(accelAs, gyrAs, rotAs, gravAs, linAs);
-                    if(status) {
-                        status = fe.calculateFeatures();
-                        if (status) {
-                            classifier = new RandomForestClassifier(this);
-                            double activity = classifier.classify();
-                            //The classifier can return 0.0 for "Others" activity, 1.0 for "Washing_Hands"
-                            // activity or -1.0 in case of errors.
-                            if(activity == 1.0) {
-                                sendDetection(Configuration.WASHING_HANDS);
-                                selfStop();
-                            }
-                            else if(activity == 0.0) {
-                                detectedActivity = Configuration.OTHERS;
-                            }
-                        }
-                    }
+
                 }
 
             }
         }
     }
 
+    //Task involved in saving the data from the smartwatch. At the end of this operation send an Intent
+    //to the ClassificationService to start feature extraction and classification operations.
     private class LoadFileTask extends AsyncTask<Asset, Void, Boolean> {
         @Override
         protected Boolean doInBackground(Asset... params) {
             if (params.length == 5) {
 
                 Asset[] assets = params;
-                String acc = "SensorData_Acc.csv";
-                String gyr = "SensorData_Gyr.csv";
-                String rot = "SensorData_Rot.csv";
-                String grav = "SensorData_Grav.csv";
-                String lin = "SensorData_LinAcc.csv";
+                String acc = "SensorData_Acc_"+counter+".csv";
+                String gyr = "SensorData_Gyr_"+counter+".csv";
+                String rot = "SensorData_Rot_"+counter+".csv";
+                String grav = "SensorData_Grav_"+counter+".csv";
+                String lin = "SensorData_LinAcc_"+counter+".csv";
 
                 String[] paths = {acc,gyr,rot,grav,lin};
 
@@ -285,12 +296,15 @@ public class HandActivityService extends WearableListenerService {
         protected void onPostExecute(Boolean res) {
 
             if (res) {
-                Log.d(TAG, "Successful loading..");
-                status = true;
+                Log.d(TAG, "Successful loading "+counter+"..");
+                counter += 1;
+                Intent intentClassification = new Intent(getApplicationContext(),ClassificationService.class);
+                intentClassification.setAction("Classify");
+                intentClassification.putExtra("counter", counter-1);
+                startService(intentClassification);
             }
             else {
                 Log.d(TAG, "Fail loading..");
-                status = false;
             }
 
         }
@@ -298,6 +312,7 @@ public class HandActivityService extends WearableListenerService {
 
     @Override
     public boolean stopService(Intent name) {
+        Log.d(TAG, "StopService");
         notifyWatch(Configuration.STOP);
         timer.cancel();
         return super.stopService(name);
@@ -307,6 +322,5 @@ public class HandActivityService extends WearableListenerService {
     @Override
     public void onDestroy() {
         super.onDestroy();
-        //TODO: send adv to smartwatch
     }
 }

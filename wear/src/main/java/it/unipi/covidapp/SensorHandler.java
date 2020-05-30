@@ -1,27 +1,39 @@
+/*
+Starts or stop the sensing according to the command received by the WearActivityService
+There are two timers:
+- A longer one used to specify the maximum sensing period.
+- A smaller one related to the period in which samples are collected with a faster rate, when values of the
+accelerometer corresponing to a possible in progress washing hands action is detected.
+
+ */
+
 package it.unipi.covidapp;
 
+import android.app.IntentService;
+import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
+import android.os.IBinder;
+import android.os.PowerManager;
 import android.util.Log;
 
-import com.google.android.gms.wearable.Asset;
-
-import java.io.BufferedInputStream;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
+
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.Timer;
 import java.util.TimerTask;
 
-import static android.content.Context.SENSOR_SERVICE;
+import androidx.annotation.Nullable;
 
-public class SensorHandler implements SensorEventListener{
+
+public class SensorHandler extends IntentService implements SensorEventListener{
+
+    private PowerManager.WakeLock wakeLock;
 
     private SensorManager sm;
     private Sensor accelerometer;
@@ -29,7 +41,6 @@ public class SensorHandler implements SensorEventListener{
     private Sensor rotation;
     private Sensor gravity;
     private Sensor linear;
-    private Context ctx;
 
     final float[] rotationMatrix = new float[9];
     final float[] orientationAngles = new float[3];
@@ -47,21 +58,104 @@ public class SensorHandler implements SensorEventListener{
     private FileWriter writerGrav;
     private FileWriter writerLin;
 
-    private Boolean started;
+    //Used to find out if the fast sampling is in progress
+    private boolean started;
+    private int counter;
 
+    //Timer used to start and stop the sampling. If no STOP command arrives from the mobile phone,
+    //this timer will stop the sampling after a given period.
+    private Timer timerDetection;
+    private TimerTask timerTaskDetection;
     //Timer used to start and stop the sampling with higher rate on the smartwatch
-    private Timer timer;
-    private TimerTask timerTask;
-
+    private Timer timerFastSampling;
+    private TimerTask timerTaskFastSampling;
 
     private static final String TAG = "SensorHandler";
 
-    public SensorHandler(Context ctx) {
-        Log.d(TAG, "Sono nel sensor handler");
-        this.ctx = ctx;
+    public SensorHandler() {
+        super("SensorHandler");
+    }
+
+  /*  @Override
+    public int onStartCommand(Intent intent, int flags, int startId) {
+        super.onStartCommand(intent, flags, startId);
+        Log.d(TAG, "OnStartCommand SensorHandler");
+        if(intent.getAction() != null && intent.getAction().compareTo("Command") == 0) {
+            int command = intent.getIntExtra("command_key", -1);
+            switch(command) {
+                case Configuration.START:
+                    Log.d(TAG, "Start case");
+                    counter = 0;
+                    initializeSensorHandler();
+                    //Start the sensorListener with a low sampling frequency and initialize the detection timer
+                    if(startListener(SensorManager.SENSOR_DELAY_NORMAL)) {
+                        initializeDetectionTimer();
+                        Log.d(TAG, "Detection Activated");
+                    }
+                    else
+                        Log.d(TAG,"Error in starting sensors listeners");
+                    break;
+                case Configuration.STOP:
+                    Log.d(TAG, "SensorHandlerService Stopped");
+                    //When FastSampling is active the related timer must be cancelled before to stop the service
+                    if(started)
+                        timerFastSampling.cancel();
+                    stopListener();
+                    timerDetection.cancel();
+                    break;
+                default:
+                    Log.d(TAG, "Default Case");
+                    break;
+            }
+        }
+        return Service.START_STICKY;
+    }*/
+
+    @Override
+    protected void onHandleIntent(@Nullable Intent intent) {
+        Log.d(TAG, "OnHandleIntent SensorHandler");
+        if(intent.getAction() != null && intent.getAction().compareTo("Command") == 0) {
+            int command = intent.getIntExtra("command_key", -1);
+            switch(command) {
+                case Configuration.START:
+                    Log.d(TAG, "Start case");
+                    counter = 0;
+                    initializeSensorHandler();
+                    //Start the sensorListener with a low sampling frequency and initialize the detection timer
+                    if(startListener(SensorManager.SENSOR_DELAY_NORMAL)) {
+                        initializeDetectionTimer();
+                        Log.d(TAG, "Detection Activated");
+                    }
+                    else
+                        Log.d(TAG,"Error in starting sensors listeners");
+                    break;
+                case Configuration.STOP:
+                    Log.d(TAG, "SensorHandlerService Stopped");
+                    //When FastSampling is active the related timer must be cancelled before to stop the service
+                    if(started)
+                        timerFastSampling.cancel();
+                    Log.d(TAG, "SensorManager: "+sm);
+                    if(sm != null) {
+                        stopListener();
+                        timerDetection.cancel();
+                    }
+                    break;
+                default:
+                    Log.d(TAG, "Default Case");
+                    break;
+            }
+        }
+    }
+
+    private void initializeSensorHandler() {
+        Log.d(TAG, "Initialize sensor handler");
         started = false;
 
-        sm = (SensorManager) this.ctx.getSystemService(SENSOR_SERVICE);
+        PowerManager powerManager = (PowerManager) getApplicationContext().getSystemService(Context.POWER_SERVICE);
+        wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,
+                "HandActivitySignal::WakelockTag");
+
+        sm = (SensorManager) getApplicationContext().getSystemService(SENSOR_SERVICE);
 
         gyroscope = sm.getDefaultSensor(Sensor.TYPE_GYROSCOPE);
         accelerometer = sm.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
@@ -69,43 +163,61 @@ public class SensorHandler implements SensorEventListener{
         gravity = sm.getDefaultSensor(Sensor.TYPE_GRAVITY);
         linear = sm.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION);
 
-        storagePath = this.ctx.getExternalFilesDir(null);
+        storagePath = getApplicationContext().getExternalFilesDir(null);
         Log.d(TAG, "[STORAGE_PATH]: "+storagePath);
     }
 
-    private void initializeTimer() {
-        //TODO: Cancellare log
-        Log.d(TAG,"Sono nel delay game timer");
-        timerTask = new TimerTask() {
+    //Initialize the Detection Timer. When it will expire the sampling operations will be stopped
+    private void initializeDetectionTimer() {
+        Log.d(TAG, "Timer "+Configuration.DETECTION_DELAY/60000+"  minutes started");
+        timerTaskDetection = new TimerTask() {
             @Override
             public void run() {
+                Log.d(TAG, "Detection stopped");
+                if(started)
+                    timerFastSampling.cancel();
+                if(stopListener())
+                    Log.d(TAG, "Detection stopped");
+            }
+        };
+        timerDetection = new Timer();
+        timerDetection.schedule(timerTaskDetection, Configuration.DETECTION_DELAY);
+
+    }
+
+    //Initialize the Fast Sampling Timer. When it will expire the sampling rate will be decreased and
+    //an Intent will be sent to the WearActitvitySerivce in order to notify that new data are ready to be sent
+    private void initializeTimerFastSampling() {
+        Log.d(TAG,"FastSampling timer started at: " + System.nanoTime());
+        timerTaskFastSampling = new TimerTask() {
+            @Override
+            public void run() {
+                wakeLock.release();
                 //Send to smartphone collected data and decrease the sampling rate
                 if(stopListener()) {
+                    Log.d(TAG, "FastSampling timer stopped at: "+System.nanoTime());
                     Log.d(TAG, "Timer expired, sending files");
                     sendFile();
                 }
                 else
                     Log.d(TAG, "Errors in storing collected data");
-                startListener();
+                startListener(SensorManager.SENSOR_DELAY_NORMAL);
                 Log.d(TAG, "Sampling rate decreased");
             }
         };
-        timer = new Timer();
-        timer.schedule(timerTask, Configuration.FAST_SAMPLING_DELAY);
+
+        timerFastSampling = new Timer();
+        timerFastSampling.schedule(timerTaskFastSampling, Configuration.FAST_SAMPLING_DELAY);
 
     }
 
-    protected Boolean startListener() {
-        Log.d(TAG,"startListener");
-        return startListener(SensorManager.SENSOR_DELAY_NORMAL);
-    }
-
+    //Registers the sensor listener with the specified rate
     protected Boolean startListener(int rate){
+
         if(rate == SensorManager.SENSOR_DELAY_NORMAL){
             Log.d(TAG, "Delay normal activated");
             return sm.registerListener(this, accelerometer, rate);
         }
-
 
         if(rate == SensorManager.SENSOR_DELAY_GAME &&
             sm.registerListener(this, accelerometer, rate) &&
@@ -118,14 +230,14 @@ public class SensorHandler implements SensorEventListener{
             // a period of 10 seconds and data collected in this time are stored in files,
             // one for each sensor involved
 
-            accel = new File(storagePath, "SensorData_Acc.csv");
-            gyr = new File(storagePath, "SensorData_Gyr.csv");
-            rot = new File(storagePath, "SensorData_Rot.csv");
-            grav = new File(storagePath, "SensorData_Grav.csv");
-            linearAcc = new File(storagePath, "SensorData_LinAcc.csv");
+            wakeLock.acquire();
+
+            accel = new File(storagePath, "SensorData_Acc_"+counter+".csv");
+            gyr = new File(storagePath, "SensorData_Gyr_"+counter+".csv");
+            rot = new File(storagePath, "SensorData_Rot_"+counter+".csv");
+            grav = new File(storagePath, "SensorData_Grav_"+counter+".csv");
+            linearAcc = new File(storagePath, "SensorData_LinAcc_"+counter+".csv");
             try {
-                //TODO: Cancelare log
-                Log.d(TAG, "Riapro i file");
                 writerAcc = new FileWriter(accel);
                 writerGyr = new FileWriter(gyr);
                 writerRot = new FileWriter(rot);
@@ -140,8 +252,8 @@ public class SensorHandler implements SensorEventListener{
                 return false;
             }
             started = true;
-            initializeTimer();
-            Log.d(TAG,"Delay game activated");
+            initializeTimerFastSampling();
+            Log.d(TAG,"Fast Sampling activated");
             return true;
         } else {
             //registerListener on some sensor could be failed so the rate must be reset on low frequency rate
@@ -157,7 +269,7 @@ public class SensorHandler implements SensorEventListener{
     protected Boolean stopListener(){
         sm.unregisterListener(this);
         //Listener could be stopped both from the Service or when changing sampling rate.
-        //When fast sampling has been activated we need also to handle file writers used to register coolected data
+        //When fast sampling has been activated we need also to handle file writers used to register collected data
         if(started) {
             try {
                 writerAcc.flush();
@@ -179,80 +291,31 @@ public class SensorHandler implements SensorEventListener{
         return true;
     }
 
+    //Send an Intent to the WearActivityService in order to notify that there are new data to send to the phone
     private void sendFile() {
-        Intent intent= new Intent(ctx, WearActivityService.class);
+        counter +=1;
+        Intent intent= new Intent(this, WearActivityService.class);
         intent.setAction("sendFile");
-        ctx.startService(intent);
+        intent.putExtra("counter",counter-1);
+        this.startService(intent);
     }
 
-/*
-    private Asset toAsset(String name) {
-        File file = new File(storagePath + name);
-        int size = (int) file.length();
-        byte[] bytes = new byte[size];
-        try {
-            BufferedInputStream buf = new BufferedInputStream(new FileInputStream(file));
-            buf.read(bytes, 0, bytes.length);
-            buf.close();
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
-            return null;
-        } catch (IOException e) {
-            e.printStackTrace();
-            return null;
-        }
-
-        Asset as = Asset.createFromBytes(bytes);
-        //file.delete();
-        return as;
-    }
-
-    public void sendFile(int counter) {
-        if (phoneNodeId != null) {
-
-            Asset accelAs = toAsset("/SensorData_Acc" + counter + ".csv");
-            Asset gyrAs = toAsset("/SensorData_Gyr" + counter + ".csv");
-            Asset rotAs = toAsset("/SensorData_Rot" + counter + ".csv");
-            Asset gravAs = toAsset("/SensorData_Grav" + counter + ".csv");
-            Asset linAs = toAsset("/SensorData_LinAcc" + counter + ".csv");
-
-            if(accelAs!=null && gyrAs!=null && rotAs!=null && gravAs!=null && linAs!=null ) {
-                PutDataMapRequest putDMR = PutDataMapRequest.create(SENSOR_DATA_PATH);
-                putDMR.getDataMap().putAsset(SENSOR_DATA_ACC_KEY, accelAs);
-                putDMR.getDataMap().putAsset(SENSOR_DATA_GYR_KEY, gyrAs);
-                putDMR.getDataMap().putAsset(SENSOR_DATA_ROT_KEY, rotAs);
-                putDMR.getDataMap().putAsset(SENSOR_DATA_GRAV_KEY, gravAs);
-                putDMR.getDataMap().putAsset(SENSOR_DATA_LIN_KEY, linAs);
-                //Log.d(TAG, "Valore nella request: "+putDMR.getDataMap().getAsset(SENSOR_DATA_ACC_KEY));
-                PutDataRequest putDR = putDMR.asPutDataRequest();
-                Log.d(TAG, "Generating DataItem: " + putDR);
-                Task<DataItem> putTask = dataClient.putDataItem(putDR);
-                mTextView.setText("Sended");
-
-                putTask.addOnSuccessListener(
-                        new OnSuccessListener<DataItem>() {
-                            @Override
-                            public void onSuccess(DataItem dataItem) {
-                                Log.d(TAG, "Sending sensors data was successful: " + dataItem);
-                            }
-                        });
-            } else
-                Log.d(TAG, "Some assets can't be created. Repeat the operations");
-        } else {
-            mTextView.setText("No devices connected");
-        }
-    }
-*/
+    //Check if accelerometer axis data are in the range of values related to a possible hands washing action
     public boolean isInRange(SensorEvent event) {
-        return ((event.values[0] >= Configuration.X_LOWER_BOUND && event.values[0] <= Configuration.X_UPPER_BOUND) &&
+        if((event.values[0] >= Configuration.X_LOWER_BOUND && event.values[0] <= Configuration.X_UPPER_BOUND) &&
                 (event.values[1] >= Configuration.Y_LOWER_BOUND && event.values[1] <= Configuration.Y_UPPER_BOUND) &&
-                (event.values[2] >= Configuration.Z_LOWER_BOUND && event.values[2] <= Configuration.Z_UPPER_BOUND));
+                (event.values[2] >= Configuration.Z_LOWER_BOUND && event.values[2] <= Configuration.Z_UPPER_BOUND)) {
+            Log.d(TAG, "ACC_X: "+event.values[0]+", ACC_Y: "+event.values[1]+", ACC_Z: "+event.values[2]+", TIMESTAMP: "+event.timestamp);
+            return true;
+        }
+        else  return false;
     }
 
+    //Handle data sent by the sensors, storing them into files, one for each type of sensor
     public void onSensorChanged(SensorEvent event){
         // Collect data from sensors
         if (event.sensor.getType() == Sensor.TYPE_ACCELEROMETER){
-            //Check before if no fast sampling is already started
+            //Check before if no fast sampling is already started and the values are the desired ones
             if((!started) && isInRange(event)) {
                 Log.d(TAG, "Hands in washing position detected");
                 stopListener();
@@ -268,6 +331,7 @@ public class SensorHandler implements SensorEventListener{
                 }
             }
         }
+        //When Fast Sampling rate is activated also the other sensors data are stored
         else if(started) {
             if (event.sensor.getType() == Sensor.TYPE_LINEAR_ACCELERATION) {
                 String temp = event.values[0] + "," + event.values[1] + "," + event.values[2] + "," + event.timestamp + ",\n";
@@ -309,4 +373,11 @@ public class SensorHandler implements SensorEventListener{
     public void onAccuracyChanged(Sensor sensor, int accuracy){
 
     }
+
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        Log.d(TAG, "MI SO DISTRUTTO");
+    }
+
 }

@@ -1,3 +1,7 @@
+/*
+Load the module generated from Weka and classifies the activities.
+ */
+
 package it.unipi.covidapp;
 
 import android.content.Context;
