@@ -8,7 +8,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.graphics.Color;
-import android.hardware.Sensor;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
