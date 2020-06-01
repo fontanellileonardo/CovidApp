@@ -216,6 +216,11 @@ public class SensorHandler extends Service implements SensorEventListener{
                     fastSamplingThread.quit();
                     fastSamplingThread = null;
                     fastSamplingHandler = null;
+                    accel.delete();
+                    gyr.delete();
+                    linearAcc.delete();
+                    grav.delete();
+                    rot.delete();
                 }
                 if(stopListener())
                     Log.d(TAG, "Detection stopped");

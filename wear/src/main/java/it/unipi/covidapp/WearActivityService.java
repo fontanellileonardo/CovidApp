@@ -93,7 +93,7 @@ public class WearActivityService extends WearableListenerService {
         }
 
         Asset as = Asset.createFromBytes(bytes);
-        //file.delete();
+        file.delete();
         return as;
     }
     public void sendFile(int counter) {

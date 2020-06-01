@@ -210,6 +210,11 @@ public class FeatureExtraction {
             }
         }
         closeFiles();
+        file_acc.delete();
+        file_grav.delete();
+        file_gyr.delete();
+        file_linAcc.delete();
+        file_rot.delete();
 
         return result;
     }
