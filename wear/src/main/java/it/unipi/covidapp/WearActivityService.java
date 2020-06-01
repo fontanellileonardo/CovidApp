@@ -140,23 +140,28 @@ public class WearActivityService extends WearableListenerService {
                     Log.d(TAG, "DataMap vuoto");
                 }
                 else {
-                    int command = dataMap.getInt(START_WATCH_KEY);
-                    if(command == Configuration.START) {
+                    String command = (dataMap.getString(START_WATCH_KEY)).split(",")[0];
+                    if(command.compareTo(Configuration.START) == 0) {
                         Log.d(TAG, "Start Smartwatch sensing");
                         Intent startIntent = new Intent(this, SensorHandler.class);
                         startIntent.setAction("Command");
                         startIntent.putExtra("command_key", Configuration.START);
                         startService(startIntent);
-                    } else if(command == Configuration.STOP){
+                    } else if(command.compareTo(Configuration.STOP) == 0) {
                         Log.d(TAG, "Stop sensing");
                         Intent stopIntent = new Intent(this, SensorHandler.class);
                         stopIntent.setAction("Command");
                         stopIntent.putExtra("command_key", Configuration.STOP);
                         startService(stopIntent);
                     }
+                    else {
+                        Log.d(TAG, String.valueOf(command));
+                    }
                 }
 
             }
         }
     }
+
+
 }

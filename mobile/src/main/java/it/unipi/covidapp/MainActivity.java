@@ -8,6 +8,7 @@ package it.unipi.covidapp;
 
 import androidx.appcompat.app.AppCompatActivity;
 import android.content.Intent;
+import android.content.res.Configuration;
 import android.os.Bundle;
 import android.util.Log;
 
@@ -33,14 +34,12 @@ public class MainActivity extends AppCompatActivity {
     //TODO: Aggiungere questa on destroy anche nell'app vera per stoppare il servizio
     @Override
     protected void onDestroy() {
-        super.onDestroy();
         Intent stopService = new Intent(this, HandActivityService.class);
-        boolean status = stopService(stopService);
-        if(status)
-            Log.d(TAG, "Service Stopped");
-        else
-            Log.d(TAG,"Error in sending stop intent");
-
+        /*stopService.setAction("Start_HandActivityService");
+        stopService.putExtra("Command", it.unipi.covidapp.Configuration.STOP);*/
+        stopService(stopService);
+        Log.d(TAG, "Service Stopped");
+        super.onDestroy();
     }
 }
 

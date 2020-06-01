@@ -25,13 +25,19 @@
             </intent-filter>
         </receiver>
 
-        <service android:name=".ClassificationService"/>
+        <service android:name=".ClassificationService">
+        <intent-filter>
+            <action android:name="Classify" />
+        </intent-filter>
+        </service>
 
         <service android:name=".HandActivityService">
             <intent-filter>
                 <action android:name="com.google.android.gms.wearable.DATA_CHANGED" />
                 <data android:scheme="wear" android:host="*"
                     android:path="/sensorData" />
+                <action android:name="Start_HandActivityService"/>
+                <action android:name="Classification_Result"/>
             </intent-filter>
         </service>
     </application>

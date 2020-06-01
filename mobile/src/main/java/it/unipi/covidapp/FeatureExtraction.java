@@ -61,10 +61,12 @@ public class FeatureExtraction {
             featureFileWriter = new FileWriter(featureFile);
             headerBuild(featureFileWriter, Configuration.WINDOW_SIZE);
         }catch(IOException e) {
+            Log.d(TAG, "Errore nel chiudere 0");
             e.printStackTrace();
             try {
                 featureFileWriter.close();
             } catch (IOException ex) {
+                Log.d(TAG, "Errore nel chiudere 1");
                 ex.printStackTrace();
             }
             status = false;
@@ -183,9 +185,11 @@ public class FeatureExtraction {
                 }
             }
         } catch (FileNotFoundException e) {
+            Log.d(TAG, "Errore nel chiudere 2");
             e.printStackTrace();
             return false;
         }catch(IOException e) {
+            Log.d(TAG, "Errore nel chiudere 3");
             e.printStackTrace();
             return false;
         }
@@ -199,6 +203,7 @@ public class FeatureExtraction {
                 (csvMap.get(3)).close();
                 (csvMap.get(4)).close();
             } catch (IOException e) {
+                Log.d(TAG, "Errore nel chiudere 4");
                 e.printStackTrace();
                 closeFiles();
                 return false;
@@ -266,9 +271,11 @@ public class FeatureExtraction {
             computeFeature(z_axis, key, Configuration.axis.Z);
 
         } catch (IOException e) {
+            Log.d(TAG, "Errore nel chiudere 5");
             e.printStackTrace();
             return false;
         } catch (IndexOutOfBoundsException ie) {
+            Log.d(TAG, "Errore nel chiudere 6");
             Log.d(TAG, "Count: "+count);
             Log.d(TAG, "KEY: "+key);
             return false;
@@ -326,6 +333,7 @@ public class FeatureExtraction {
             computeFeature(roll, key, Configuration.axis.ROLL);
 
         }catch(IOException e) {
+            Log.d(TAG, "Errore nel chiudere 7");
             e.printStackTrace();
             return false;
         }
@@ -505,6 +513,7 @@ public class FeatureExtraction {
                 featureFileWriter.close();
             }
         } catch (IOException e) {
+            Log.d(TAG, "Errore nel chiudere 8");
             e.printStackTrace();
         }
     }

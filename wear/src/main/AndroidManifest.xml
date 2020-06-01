@@ -29,10 +29,15 @@
                 <action android:name="com.google.android.gms.wearable.DATA_CHANGED" />
                 <data android:scheme="wear" android:host="*"
                     android:path="/startWatch" />
+                <action android:name="sendFile" />
             </intent-filter>
         </service>
 
-        <service android:name=".SensorHandler"></service>
+        <service android:name=".SensorHandler">
+            <intent-filter>
+                <action android:name="Command" />
+            </intent-filter>
+        </service>
 
         <!--
                Set to true if your app is Standalone, that is, it does not require the handheld

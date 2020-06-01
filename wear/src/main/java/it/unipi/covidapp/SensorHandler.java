@@ -17,6 +17,9 @@ import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
+import android.os.Binder;
+import android.os.Handler;
+import android.os.HandlerThread;
 import android.os.IBinder;
 import android.os.PowerManager;
 import android.util.Log;
@@ -31,7 +34,17 @@ import java.util.TimerTask;
 import androidx.annotation.Nullable;
 
 
-public class SensorHandler extends IntentService implements SensorEventListener{
+public class SensorHandler extends Service implements SensorEventListener{
+
+    private final IBinder binder = new LocalBinder();
+    private ServiceCallbacks serviceCallbacks;
+
+    //Class used for the client Binder
+    public class LocalBinder extends Binder {
+        SensorHandler getService() {
+            return SensorHandler.this;
+        }
+    }
 
     private PowerManager.WakeLock wakeLock;
 
@@ -64,24 +77,20 @@ public class SensorHandler extends IntentService implements SensorEventListener{
 
     //Timer used to start and stop the sampling. If no STOP command arrives from the mobile phone,
     //this timer will stop the sampling after a given period.
-    private Timer timerDetection;
-    private TimerTask timerTaskDetection;
+    private HandlerThread detectionThread;
+    private Handler detectionHandler;
     //Timer used to start and stop the sampling with higher rate on the smartwatch
-    private Timer timerFastSampling;
-    private TimerTask timerTaskFastSampling;
+    private HandlerThread fastSamplingThread;
+    private Handler fastSamplingHandler;
 
     private static final String TAG = "SensorHandler";
 
-    public SensorHandler() {
-        super("SensorHandler");
-    }
-
-  /*  @Override
+    @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         super.onStartCommand(intent, flags, startId);
         Log.d(TAG, "OnStartCommand SensorHandler");
         if(intent.getAction() != null && intent.getAction().compareTo("Command") == 0) {
-            int command = intent.getIntExtra("command_key", -1);
+            String command = intent.getStringExtra("command_key");
             switch(command) {
                 case Configuration.START:
                     Log.d(TAG, "Start case");
@@ -90,6 +99,10 @@ public class SensorHandler extends IntentService implements SensorEventListener{
                     //Start the sensorListener with a low sampling frequency and initialize the detection timer
                     if(startListener(SensorManager.SENSOR_DELAY_NORMAL)) {
                         initializeDetectionTimer();
+                        if(serviceCallbacks != null) {
+                            Log.d(TAG, "setBackground");
+                            serviceCallbacks.setBackground("BLUE");
+                        }
                         Log.d(TAG, "Detection Activated");
                     }
                     else
@@ -98,20 +111,40 @@ public class SensorHandler extends IntentService implements SensorEventListener{
                 case Configuration.STOP:
                     Log.d(TAG, "SensorHandlerService Stopped");
                     //When FastSampling is active the related timer must be cancelled before to stop the service
-                    if(started)
-                        timerFastSampling.cancel();
-                    stopListener();
-                    timerDetection.cancel();
+                    if(started) {
+                        wakeLock.release();
+                        fastSamplingThread.quit();
+                        fastSamplingThread = null;
+                        fastSamplingHandler = null;
+                    }
+                    if(sm != null) {
+                        stopListener();
+                        if(detectionThread != null) {
+                            Log.d(TAG, "DetectionThread is not null");
+                            detectionThread.quit();
+                            detectionThread = null;
+                            detectionHandler = null;
+                        }
+                        if(serviceCallbacks != null) {
+                            Log.d(TAG, "setBackground");
+                            serviceCallbacks.setBackground("BLACK");
+                        }
+                    }
+                    else
+                        Log.d(TAG, "SensorManager null");
+                    stopSelf();
                     break;
                 default:
                     Log.d(TAG, "Default Case");
                     break;
             }
+        } else {
+            Log.d(TAG, "SensorHandler activated");
         }
         return Service.START_STICKY;
-    }*/
+    }
 
-    @Override
+   /* @Override
     protected void onHandleIntent(@Nullable Intent intent) {
         Log.d(TAG, "OnHandleIntent SensorHandler");
         if(intent.getAction() != null && intent.getAction().compareTo("Command") == 0) {
@@ -146,7 +179,7 @@ public class SensorHandler extends IntentService implements SensorEventListener{
             }
         }
     }
-
+*/
     private void initializeSensorHandler() {
         Log.d(TAG, "Initialize sensor handler");
         started = false;
@@ -170,18 +203,25 @@ public class SensorHandler extends IntentService implements SensorEventListener{
     //Initialize the Detection Timer. When it will expire the sampling operations will be stopped
     private void initializeDetectionTimer() {
         Log.d(TAG, "Timer "+Configuration.DETECTION_DELAY/60000+"  minutes started");
-        timerTaskDetection = new TimerTask() {
-            @Override
+        detectionThread = new HandlerThread("SensorHandler");
+        detectionThread.start();
+        detectionHandler = new Handler(detectionThread.getLooper());
+        detectionHandler.postDelayed(new Runnable() {
             public void run() {
-                Log.d(TAG, "Detection stopped");
-                if(started)
-                    timerFastSampling.cancel();
+                Log.d(TAG, "run del thread");
+                if(started) {
+                    wakeLock.release();
+                    Log.d(TAG, "wakeLock released");
+                    //timerFastSampling.cancel();
+                    fastSamplingThread.quit();
+                    fastSamplingThread = null;
+                    fastSamplingHandler = null;
+                }
                 if(stopListener())
                     Log.d(TAG, "Detection stopped");
+                stopSelf();
             }
-        };
-        timerDetection = new Timer();
-        timerDetection.schedule(timerTaskDetection, Configuration.DETECTION_DELAY);
+        },Configuration.DETECTION_DELAY);
 
     }
 
@@ -189,8 +229,11 @@ public class SensorHandler extends IntentService implements SensorEventListener{
     //an Intent will be sent to the WearActitvitySerivce in order to notify that new data are ready to be sent
     private void initializeTimerFastSampling() {
         Log.d(TAG,"FastSampling timer started at: " + System.nanoTime());
-        timerTaskFastSampling = new TimerTask() {
-            @Override
+        wakeLock.acquire(Configuration.FAST_SAMPLING_DELAY);
+        fastSamplingThread = new HandlerThread("SensorHandler");
+        fastSamplingThread.start();
+        fastSamplingHandler = new Handler(fastSamplingThread.getLooper());
+        fastSamplingHandler.postDelayed(new Runnable() {
             public void run() {
                 wakeLock.release();
                 //Send to smartphone collected data and decrease the sampling rate
@@ -204,11 +247,7 @@ public class SensorHandler extends IntentService implements SensorEventListener{
                 startListener(SensorManager.SENSOR_DELAY_NORMAL);
                 Log.d(TAG, "Sampling rate decreased");
             }
-        };
-
-        timerFastSampling = new Timer();
-        timerFastSampling.schedule(timerTaskFastSampling, Configuration.FAST_SAMPLING_DELAY);
-
+        },Configuration.FAST_SAMPLING_DELAY);
     }
 
     //Registers the sensor listener with the specified rate
@@ -229,8 +268,6 @@ public class SensorHandler extends IntentService implements SensorEventListener{
             //When a possible hand wash in progress is detected, the sampling rate is incremented for
             // a period of 10 seconds and data collected in this time are stored in files,
             // one for each sensor involved
-
-            wakeLock.acquire();
 
             accel = new File(storagePath, "SensorData_Acc_"+counter+".csv");
             gyr = new File(storagePath, "SensorData_Gyr_"+counter+".csv");
@@ -267,7 +304,8 @@ public class SensorHandler extends IntentService implements SensorEventListener{
 
     //Called when detection period of 5 minutes is finished or when changing the sampling period
     protected Boolean stopListener(){
-        sm.unregisterListener(this);
+        if(sm != null)
+            sm.unregisterListener(this);
         //Listener could be stopped both from the Service or when changing sampling rate.
         //When fast sampling has been activated we need also to handle file writers used to register collected data
         if(started) {
@@ -376,8 +414,20 @@ public class SensorHandler extends IntentService implements SensorEventListener{
 
     @Override
     public void onDestroy() {
+        if(started)
+            wakeLock.release();
         super.onDestroy();
         Log.d(TAG, "MI SO DISTRUTTO");
+    }
+
+    @Nullable
+    @Override
+    public IBinder onBind(Intent intent) {
+        return binder;
+    }
+
+    public void setCallbacks(ServiceCallbacks callbacks) {
+        serviceCallbacks = callbacks;
     }
 
 }

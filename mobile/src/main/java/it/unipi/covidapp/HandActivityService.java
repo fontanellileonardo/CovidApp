@@ -87,7 +87,7 @@ public class HandActivityService extends WearableListenerService {
             if(intent.getStringExtra("activity_key").compareTo("WASHING_HANDS") == 0) {
                 Log.d(TAG, "WASHING_HANDS detected");
                 //Stop the sampling on the smartwatch when washing hands is detected
-                notifyWatch(Configuration.STOP);
+                notifyWatch(Configuration.STOP + ","+(int)System.currentTimeMillis());
                 detectedActivity = Configuration.WASHING_HANDS;
             }
             else if(intent.getStringExtra("activity_key").compareTo("OTHERS") == 0) {
@@ -97,11 +97,20 @@ public class HandActivityService extends WearableListenerService {
             }
         }
         else if(intent.getAction() != null && intent.getAction().compareTo("Start_HandActivityService") == 0){
-            counter = 0;
-            detectedActivity = -1;
-            dataClient = Wearable.getDataClient(this);
-            storagePath = getExternalFilesDir(null);
-            checkIfWatchHasApp();
+            String command = intent.getStringExtra("Command");
+            switch(command) {
+                case Configuration.START:
+                    counter = 0;
+                    detectedActivity = -1;
+                    dataClient = Wearable.getDataClient(this);
+                    storagePath = getExternalFilesDir(null);
+                    checkIfWatchHasApp();
+                    break;
+                default:
+                    Log.d(TAG, "Default case");
+                    break;
+            }
+
         }
         return Service.START_STICKY;
     }
@@ -124,7 +133,7 @@ public class HandActivityService extends WearableListenerService {
                         watchNodeID = ((Node) capabilityInfo.getNodes().toArray()[0]).getId();
                         Log.d(TAG, "watchId: "+watchNodeID);
                         //If a connected watch is detected the mobile asks it to start collecting data
-                        notifyWatch(Configuration.START);
+                        notifyWatch(Configuration.START + ","+(int)System.currentTimeMillis());
                     }
                 } else {
                     Log.d(TAG, "Capability request failed to return any results.");
@@ -134,11 +143,11 @@ public class HandActivityService extends WearableListenerService {
     }
 
     //This function is called in order to start or stop sampling in the smartwatch for activity recognition
-    private void notifyWatch(int start) {
+    private void notifyWatch(String start) {
         if (watchNodeID != null) {
             PutDataMapRequest putDMR = PutDataMapRequest.create(START_WATCH_PATH);
-            putDMR.getDataMap().putInt(START_WATCH_KEY, start);
-            Log.d(TAG,"Sent value: "+putDMR.getDataMap().getInt(START_WATCH_KEY));
+            putDMR.getDataMap().putString(START_WATCH_KEY, start);
+            Log.d(TAG,"Sent value: "+putDMR.getDataMap().getString(START_WATCH_KEY));
             PutDataRequest putDR = putDMR.asPutDataRequest();
             Task<DataItem> putTask = dataClient.putDataItem(putDR);
             Log.d(TAG,"Sent notification to SmartWatch");
@@ -151,21 +160,22 @@ public class HandActivityService extends WearableListenerService {
                         }
                     });
 
-            if(start == Configuration.START) {
+            String command = start.split(",")[0];
+            if(command.compareTo(Configuration.START) == 0) {
                 initializeTimer();
             }
         } else {
             Log.d(TAG,"No devices connected");
         }
     }
-
+/*
     private void selfStop() {
         Intent stopService = new Intent(this, HandActivityService.class);
         if(stopService(stopService))
             Log.d(TAG,"Service Stopped!");
         else
             Log.d(TAG,"Error in sending stop intent");
-    }
+    }*/
 
     //Send the broadcast intent for the risk index computation with the result of classification
     private void sendDetection(int result) {
@@ -185,7 +195,7 @@ public class HandActivityService extends WearableListenerService {
                     //TODO:Send to smartwatch no hand
                     sendDetection(detectedActivity);
                 }
-                selfStop();
+                stopSelf();
             }
         };
         timer = new Timer();
@@ -262,6 +272,7 @@ public class HandActivityService extends WearableListenerService {
                     // decode the stream into a file
                     byte[] buffer = new byte[0];
                     try {
+                        //TODO: Controllare available
                         buffer = new byte[assetInputStream.available()];
                         assetInputStream.read(buffer);
                     } catch (IOException e) {
@@ -311,16 +322,10 @@ public class HandActivityService extends WearableListenerService {
     }
 
     @Override
-    public boolean stopService(Intent name) {
-        Log.d(TAG, "StopService");
-        notifyWatch(Configuration.STOP);
-        timer.cancel();
-        return super.stopService(name);
-    }
-
-
-    @Override
     public void onDestroy() {
+        Log.d(TAG, "StopService");
+        notifyWatch(Configuration.STOP + ","+(int)System.currentTimeMillis());
+        timer.cancel();
         super.onDestroy();
     }
 }
