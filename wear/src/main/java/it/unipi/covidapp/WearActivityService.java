@@ -1,7 +1,7 @@
 /*
-- Handles data sent from the mobile phone. It will start the sensing or stop it,
-  according tothe requesto from the phone
-- Send collected data to the mobile phone
+- Handles data sent from the paired mobile phone. It will start the sensing or stop it,
+  according to the request from the phone
+- Sends collected data to the paired mobile phone
 */
 
 package it.unipi.covidapp;
@@ -61,7 +61,7 @@ public class WearActivityService extends WearableListenerService {
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         super.onStartCommand(intent, flags, startId);
-        //Send files to the mobile phone when sensors data are collected by SensorHandler
+        //Send files to the paired mobile phone when sensors data are collected by SensorHandler
         if (intent.getAction() != null && intent.getAction().compareTo("sendFile") == 0) {
             int numberFile = intent.getIntExtra("counter", -1);
             if(numberFile != -1)
@@ -76,6 +76,7 @@ public class WearActivityService extends WearableListenerService {
         Log.d(TAG,"Service stopped");
     }
 
+    //Converts the specified file in asset to send to paired smartphone
     private Asset toAsset(String name) {
         File file = new File(this.getExternalFilesDir(null) + name);
         int size = (int) file.length();
@@ -96,6 +97,8 @@ public class WearActivityService extends WearableListenerService {
         file.delete();
         return as;
     }
+
+    //Sends the last collected data's files to paired smartphone, converting them into assets
     public void sendFile(int counter) {
 
         Asset accelAs = toAsset("/SensorData_Acc_"+counter+".csv");
@@ -127,8 +130,8 @@ public class WearActivityService extends WearableListenerService {
 
     }
 
-    //Handles data sent from the mobile phone. It will start the sensing or stop it,
-    // according tothe requesto from the phone
+    //Handles data sent from the paired mobile phone. It will start the sensing or stop it,
+    // according to the request from the phone
     @Override
     public void onDataChanged(@NonNull DataEventBuffer dataEventBuffer) {
         Log.d(TAG, "Message Received");

@@ -10,7 +10,6 @@ package it.unipi.covidapp;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.content.res.Configuration;
 
 public class HomeReceiver extends BroadcastReceiver {
     private String action;
@@ -19,14 +18,13 @@ public class HomeReceiver extends BroadcastReceiver {
     public void onReceive(Context context, Intent intent) {
         action = intent.getAction();
         System.out.println("Action received: " + action);
-        //TODO: Cancellare questa action dall'app vera
         if(intent.getAction() != null && action.compareTo("hand_activity_detection") == 0) {
             System.out.println("Activity detected: "+intent.getIntExtra("wash_hand", -1));
         }
         else if(intent.getAction() != null && action.compareTo("UserInHome") == 0){
             Intent startService = new Intent(context, HandActivityService.class);
             startService.setAction("Start_HandActivityService");
-            startService.putExtra("Command", it.unipi.covidapp.Configuration.START);
+            startService.putExtra("Command", Configuration.START);
             context.startService(startService);
         }
     }

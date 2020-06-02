@@ -62,7 +62,6 @@ public class ClassificationService extends IntentService {
                 Log.d(TAG, "WASHING_HANDS");
                 intentResult.putExtra("activity_key","WASHING_HANDS");
                 if(serviceCallbacks != null) {
-                    Log.d(TAG, "setBackground");
                     serviceCallbacks.setBackground("GREEN");
                 }
             }
@@ -70,7 +69,6 @@ public class ClassificationService extends IntentService {
                 Log.d(TAG,"OTHERS");
                 intentResult.putExtra("activity_key","OTHERS");
                 if(serviceCallbacks != null) {
-                    Log.d(TAG, "setBackground");
                     serviceCallbacks.setBackground("RED");
                 }
             }

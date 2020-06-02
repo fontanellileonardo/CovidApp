@@ -12,9 +12,6 @@ public class Configuration {
     static final String START = "START";
     static final String STOP = "STOP";
 
-    //TODO: Mettere un timer maggiore di quello dello smartwatch per dare tempo al task di processare
-    //tutti i file che sono stati ricevuti poco prima della scadenza del timer altrimenti crasha tutto,
-    //l'appicazione si chiude perciò il l'AsyncTask che carica i file da essa generato perde i permessi di accedere ai file
     static final long DELAY = 420000;  //7 minutes timer
 
     static final int WINDOW_SIZE = 4; //seconds

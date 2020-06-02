@@ -1,6 +1,7 @@
 /*
-- Instantiates the Homereceiver and emulates the intent sent when the user has return to his house
+- Emulates the intent sent when the user came back to his home.
 - Stop the HandActivityService when the application is closed by the user.
+- Changes the background color of the application according to the result of activity classification
  */
 
 
@@ -28,8 +29,6 @@ public class MainActivity extends AppCompatActivity implements ServiceCallbacks 
 
     private ClassificationService classificationService;
     private boolean bound = false;
-    private HomeReceiver hr;
-    private FeatureExtraction fe;
 
     private TextView tv;
 
@@ -37,9 +36,6 @@ public class MainActivity extends AppCompatActivity implements ServiceCallbacks 
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        //TODO: Mettere questa parte nel Main del Master app vera (Receiver)
-        //Broadcast receiver for user at home. It will start the Service for hand activity detection
-        hr = new HomeReceiver();
 
         Intent intentClassification = new Intent(this, ClassificationService.class);
         bindService(intentClassification, serviceConnection, Context.BIND_AUTO_CREATE);
@@ -63,7 +59,7 @@ public class MainActivity extends AppCompatActivity implements ServiceCallbacks 
 
         @Override
         public void onServiceConnected(ComponentName name, IBinder service) {
-            // cast the IBinder and get MyService instance
+            // cast the IBinder and get ClassificationService instance
             ClassificationService.LocalBinder binder = (ClassificationService.LocalBinder) service;
             classificationService = binder.getService();
             bound = true;
@@ -76,23 +72,21 @@ public class MainActivity extends AppCompatActivity implements ServiceCallbacks 
         }
     };
 
+    //Changes the background color of the application according to the result of activity classification
     @Override
     public void setBackground(String color) {
         final String col = color;
         new Handler(Looper.getMainLooper()).post(new Runnable() {
             @Override
             public void run() {
-                Log.d(TAG, "setBackground");
                 ConstraintLayout cl = (ConstraintLayout) findViewById(R.id.backGround);
                 tv = (TextView) findViewById(R.id.textView);
                 switch (col) {
                     case "GREEN":
-                        Log.d(TAG, "GREEN");
                         cl.setBackgroundColor(Color.GREEN);
                         tv.setText("Washing Hands activity detected");
                         break;
                     case "RED":
-                        Log.d(TAG, "RED");
                         cl.setBackgroundColor(Color.RED);
                         tv.setText("No washing hands activity detected");
                         break;
@@ -104,7 +98,6 @@ public class MainActivity extends AppCompatActivity implements ServiceCallbacks 
         });
     }
 
-    //TODO: Aggiungere questa on destroy anche nell'app vera per stoppare il servizio
     @Override
     protected void onDestroy() {
         //Unbind from service
@@ -114,8 +107,6 @@ public class MainActivity extends AppCompatActivity implements ServiceCallbacks 
             bound = false;
         }
         Intent stopService = new Intent(this, HandActivityService.class);
-        /*stopService.setAction("Start_HandActivityService");
-        stopService.putExtra("Command", it.unipi.covidapp.Configuration.STOP);*/
         stopService(stopService);
         Log.d(TAG, "Service Stopped");
         super.onDestroy();

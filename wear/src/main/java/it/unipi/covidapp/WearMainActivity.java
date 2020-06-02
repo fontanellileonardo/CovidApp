@@ -1,5 +1,7 @@
-
-
+/*
+- Binds the SensorHandler service and changes the background color according to the
+  state of the sensing operations
+ */
 package it.unipi.covidapp;
 
 
@@ -45,7 +47,7 @@ public class WearMainActivity extends WearableActivity implements ServiceCallbac
 
         @Override
         public void onServiceConnected(ComponentName name, IBinder service) {
-            // cast the IBinder and get MyService instance
+            // cast the IBinder and get SensorHandler Service instance
             SensorHandler.LocalBinder binder = (SensorHandler.LocalBinder) service;
             sensorHandlerService = binder.getService();
             bound = true;
@@ -64,7 +66,6 @@ public class WearMainActivity extends WearableActivity implements ServiceCallbac
         new Handler(Looper.getMainLooper()).post(new Runnable() {
             @Override
             public void run() {
-                Log.d(TAG, "setBackground");
                 BoxInsetLayout bil = (BoxInsetLayout) findViewById(R.id.background);
                 switch (col) {
                     case "BLUE":

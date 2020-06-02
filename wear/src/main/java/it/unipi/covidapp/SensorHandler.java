@@ -4,12 +4,10 @@ There are two timers:
 - A longer one used to specify the maximum sensing period.
 - A smaller one related to the period in which samples are collected with a faster rate, when values of the
 accelerometer corresponing to a possible in progress washing hands action is detected.
-
  */
 
 package it.unipi.covidapp;
 
-import android.app.IntentService;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
@@ -28,9 +26,6 @@ import java.io.File;
 
 import java.io.FileWriter;
 import java.io.IOException;
-import java.util.Timer;
-import java.util.TimerTask;
-
 import androidx.annotation.Nullable;
 
 
@@ -125,7 +120,6 @@ public class SensorHandler extends Service implements SensorEventListener{
                     if(sm != null) {
                         stopListener();
                         if(detectionThread != null) {
-                            Log.d(TAG, "DetectionThread is not null");
                             detectionThread.quit();
                             detectionThread = null;
                             detectionHandler = null;
@@ -153,6 +147,8 @@ public class SensorHandler extends Service implements SensorEventListener{
         Log.d(TAG, "Initialize sensor handler");
         started = false;
 
+        //Sets up the wakelock level to "PARTIAL_WAKE_LOCK" in order to mantain the cpu awake during
+        //the fast sampling operations, so that each sensor's event is processed and no missing value occurs
         PowerManager powerManager = (PowerManager) getApplicationContext().getSystemService(Context.POWER_SERVICE);
         wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,
                 "HandActivitySignal::WakelockTag");
@@ -171,7 +167,7 @@ public class SensorHandler extends Service implements SensorEventListener{
 
     //Initialize the Detection Timer. When it will expire the sampling operations will be stopped
     private void initializeDetectionTimer() {
-        Log.d(TAG, "Timer "+Configuration.DETECTION_DELAY/60000+"  minutes started");
+        Log.d(TAG, "Timer "+Configuration.DETECTION_DELAY/60000+" minutes started");
         detectionThread = new HandlerThread("SensorHandler");
         detectionThread.start();
         detectionHandler = new Handler(detectionThread.getLooper());
@@ -181,7 +177,6 @@ public class SensorHandler extends Service implements SensorEventListener{
                 if(started) {
                     wakeLock.release();
                     Log.d(TAG, "wakeLock released");
-                    //timerFastSampling.cancel();
                     fastSamplingThread.quit();
                     fastSamplingThread = null;
                     fastSamplingHandler = null;
@@ -202,7 +197,6 @@ public class SensorHandler extends Service implements SensorEventListener{
     //Initialize the Fast Sampling Timer. When it will expire the sampling rate will be decreased and
     //an Intent will be sent to the WearActitvitySerivce in order to notify that new data are ready to be sent
     private void initializeTimerFastSampling() {
-        Log.d(TAG,"FastSampling timer started at: " + System.nanoTime());
         wakeLock.acquire(Configuration.FAST_SAMPLING_DELAY);
         fastSamplingThread = new HandlerThread("SensorHandler");
         fastSamplingThread.start();
@@ -210,9 +204,8 @@ public class SensorHandler extends Service implements SensorEventListener{
         fastSamplingHandler.postDelayed(new Runnable() {
             public void run() {
                 wakeLock.release();
-                //Send to smartphone collected data and decrease the sampling rate
+                //Sends to paired smartphone collected data and decrease the sampling rate
                 if(stopListener()) {
-                    Log.d(TAG, "FastSampling timer stopped at: "+System.nanoTime());
                     Log.d(TAG, "Timer expired, sending files");
                     sendFile();
                 }
@@ -303,7 +296,7 @@ public class SensorHandler extends Service implements SensorEventListener{
         return true;
     }
 
-    //Send an Intent to the WearActivityService in order to notify that there are new data to send to the phone
+    //Sends an Intent to the WearActivityService in order to notify that there are new data to send to the phone
     private void sendFile() {
         counter +=1;
         Intent intent= new Intent(this, WearActivityService.class);
@@ -391,7 +384,6 @@ public class SensorHandler extends Service implements SensorEventListener{
         if(started)
             wakeLock.release();
         super.onDestroy();
-        Log.d(TAG, "MI SO DISTRUTTO");
     }
 
     @Nullable

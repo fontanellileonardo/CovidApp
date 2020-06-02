@@ -54,10 +54,10 @@ public class HandActivityService extends WearableListenerService {
     private String watchNodeID;
 
     //Path for messages exchange
-    //Sended for starting the sensing activity on smartwatch
+    //Sent for starting the sensing activity on paired smartwatch
     private static final String START_WATCH_PATH = "/startWatch";
     private static final String START_WATCH_KEY = "start";
-    //Used for receiving sensors data from smartwatch
+    //Used for receiving sensors data from paired smartwatch
     private static final String SENSOR_DATA_PATH = "/sensorData";
     private static final String SENSOR_DATA_ACC_KEY = "accelerometer";
     private static final String SENSOR_DATA_GYR_KEY = "gyroscope";
@@ -131,7 +131,7 @@ public class HandActivityService extends WearableListenerService {
                     Log.d(TAG, "Nodes detected: " + capabilityInfo.getNodes());
                     if(!capabilityInfo.getNodes().isEmpty()) {
                         watchNodeID = ((Node) capabilityInfo.getNodes().toArray()[0]).getId();
-                        Log.d(TAG, "watchId: "+watchNodeID);
+                        Log.d(TAG, "WatchId: "+watchNodeID);
                         //If a connected watch is detected the mobile asks it to start collecting data
                         notifyWatch(Configuration.START + ","+(int)System.currentTimeMillis());
                     }
@@ -142,7 +142,7 @@ public class HandActivityService extends WearableListenerService {
         });
     }
 
-    //This function is called in order to start or stop sampling in the smartwatch for activity recognition
+    //This function is called in order to start or stop sampling in the paired smartwatch for activity recognition
     private void notifyWatch(String start) {
         if (watchNodeID != null) {
             PutDataMapRequest putDMR = PutDataMapRequest.create(START_WATCH_PATH);
@@ -194,7 +194,7 @@ public class HandActivityService extends WearableListenerService {
 
     }
 
-    //Handle the messages received from the smartwatch
+    //Handle the messages received from the paired smartwatch
     @Override
     public void onDataChanged(@NonNull DataEventBuffer dataEventBuffer) {
         Log.d(TAG, "Message Received");
@@ -221,8 +221,8 @@ public class HandActivityService extends WearableListenerService {
         }
     }
 
-    //Task involved in saving the data from the smartwatch. At the end of this operation send an Intent
-    //to the ClassificationService to start feature extraction and classification operations.
+    //Task involved in saving the data received from the paired smartwatch. At the end of this operation sends an Intent
+    //to the ClassificationService to start features extraction and classification operations.
     private class LoadFileTask extends AsyncTask<Asset, Void, Boolean> {
         @Override
         protected Boolean doInBackground(Asset... params) {
@@ -239,7 +239,7 @@ public class HandActivityService extends WearableListenerService {
 
                 Log.d(TAG, "Loading the file");
 
-                // convert asset into a file descriptor and block until it's ready
+                // Converts asset into a file descriptor and block until it's ready
                 for(int i=0; i<assets.length; i++) {
                     Task<DataClient.GetFdForAssetResponse> getFdForAssetResponseTask =
                             Wearable.getDataClient(getApplicationContext()).getFdForAsset(assets[i]);
@@ -263,7 +263,6 @@ public class HandActivityService extends WearableListenerService {
                     // decode the stream into a file
                     byte[] buffer = new byte[0];
                     try {
-                        //TODO: Controllare available
                         buffer = new byte[assetInputStream.available()];
                         assetInputStream.read(buffer);
                     } catch (IOException e) {

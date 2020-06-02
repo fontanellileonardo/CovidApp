@@ -61,12 +61,10 @@ public class FeatureExtraction {
             featureFileWriter = new FileWriter(featureFile);
             headerBuild(featureFileWriter, Configuration.WINDOW_SIZE);
         }catch(IOException e) {
-            Log.d(TAG, "Errore nel chiudere 0");
             e.printStackTrace();
             try {
                 featureFileWriter.close();
             } catch (IOException ex) {
-                Log.d(TAG, "Errore nel chiudere 1");
                 ex.printStackTrace();
             }
             status = false;
@@ -185,11 +183,9 @@ public class FeatureExtraction {
                 }
             }
         } catch (FileNotFoundException e) {
-            Log.d(TAG, "Errore nel chiudere 2");
             e.printStackTrace();
             return false;
         }catch(IOException e) {
-            Log.d(TAG, "Errore nel chiudere 3");
             e.printStackTrace();
             return false;
         }
@@ -203,7 +199,6 @@ public class FeatureExtraction {
                 (csvMap.get(3)).close();
                 (csvMap.get(4)).close();
             } catch (IOException e) {
-                Log.d(TAG, "Errore nel chiudere 4");
                 e.printStackTrace();
                 closeFiles();
                 return false;
@@ -265,7 +260,6 @@ public class FeatureExtraction {
             if (count < Configuration.FRAGMENT_LENGTH * Configuration.SAMPLING_RATE) {
                 Log.d(TAG, "Not enough data in file of sensor with key "+key);
                 Log.d(TAG, "Count value: "+count);
-                //TODO: decidere se riempire gli utlimi valori che mancano, in base ad una threshold su quanti valori mancano
                 return false;
             }
             rowMap.put(key, row);
@@ -276,11 +270,9 @@ public class FeatureExtraction {
             computeFeature(z_axis, key, Configuration.axis.Z);
 
         } catch (IOException e) {
-            Log.d(TAG, "Errore nel chiudere 5");
             e.printStackTrace();
             return false;
         } catch (IndexOutOfBoundsException ie) {
-            Log.d(TAG, "Errore nel chiudere 6");
             Log.d(TAG, "Count: "+count);
             Log.d(TAG, "KEY: "+key);
             return false;
@@ -338,50 +330,11 @@ public class FeatureExtraction {
             computeFeature(roll, key, Configuration.axis.ROLL);
 
         }catch(IOException e) {
-            Log.d(TAG, "Errore nel chiudere 7");
             e.printStackTrace();
             return false;
         }
         return true;
     }
-
-    /*
-    // compute mean and standard deviation and skewness in a fragment
-    public void computeSharedFeature(double[] data, int key, Configuration.axis ax) throws IOException {
-        for (int i = 0;
-             i < Configuration.FRAGMENT_LENGTH * Configuration.SAMPLING_RATE && i < data.length;
-             i += (Configuration.WINDOW_SIZE * Configuration.SAMPLING_RATE)) {
-            double mean = mn.evaluate(data, i, Configuration.WINDOW_SIZE * Configuration.SAMPLING_RATE);
-            featureFileWriter.append(mean + ",");
-            featureFileWriter.append(stDv.evaluate(data, mean, i, Configuration.WINDOW_SIZE * Configuration.SAMPLING_RATE) + ",");
-            if((key == 1 && ax==Configuration.axis.Z && i==0) || (key == 2 && ax==Configuration.axis.Z && i!=0) ||
-                    (key==4 && ax==Configuration.axis.PITCH && i==0)) {
-                double skew = skewness.evaluate(data, i, Configuration.WINDOW_SIZE * Configuration.SAMPLING_RATE);
-                if(Double.isNaN(skew))
-                    featureFileWriter.append(0.0 + ",");
-                else
-                    featureFileWriter.append(skew + ",");
-                if(key==4 && ax==Configuration.axis.PITCH && i==0)
-                    return;
-            }
-        }
-    }
-
-    //Compute mean and standard deviation for gravity (x and y axis)
-    public void computeFeature(double[] data, Configuration.axis ax) throws IOException {
-        for (int i = 0;
-             i < Configuration.FRAGMENT_LENGTH * Configuration.SAMPLING_RATE && i < data.length;
-             i += (Configuration.WINDOW_SIZE * Configuration.SAMPLING_RATE)) {
-            double mean = mn.evaluate(data, i, Configuration.WINDOW_SIZE * Configuration.SAMPLING_RATE);
-            featureFileWriter.append(mean + ",");
-            if(ax==Configuration.axis.X && i!=0)
-                featureFileWriter.append(stDv.evaluate(data, mean, i, Configuration.WINDOW_SIZE * Configuration.SAMPLING_RATE) + ",");
-            if(ax==Configuration.axis.Y && i==0)
-                return;
-        }
-    }
-*/
-    //TODO: Check private and public methods
 
     private void computeSkewness(double[] data, int i) throws IOException{
         double skew = skewness.evaluate(data, i, Configuration.WINDOW_SIZE * Configuration.SAMPLING_RATE);
@@ -518,7 +471,6 @@ public class FeatureExtraction {
                 featureFileWriter.close();
             }
         } catch (IOException e) {
-            Log.d(TAG, "Errore nel chiudere 8");
             e.printStackTrace();
         }
     }
