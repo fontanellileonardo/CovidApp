@@ -168,14 +168,6 @@ public class HandActivityService extends WearableListenerService {
             Log.d(TAG,"No devices connected");
         }
     }
-/*
-    private void selfStop() {
-        Intent stopService = new Intent(this, HandActivityService.class);
-        if(stopService(stopService))
-            Log.d(TAG,"Service Stopped!");
-        else
-            Log.d(TAG,"Error in sending stop intent");
-    }*/
 
     //Send the broadcast intent for the risk index computation with the result of classification
     private void sendDetection(int result) {
@@ -192,7 +184,6 @@ public class HandActivityService extends WearableListenerService {
             @Override
             public void run() {
                 if(detectedActivity != -1){
-                    //TODO:Send to smartwatch no hand
                     sendDetection(detectedActivity);
                 }
                 stopSelf();

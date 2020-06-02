@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">CovidApp</string>
+    <string name="user_at_home">USER AT HOME</string>
+    <string name="covid_app">Covid App</string>
 </resources>

@@ -116,6 +116,11 @@ public class SensorHandler extends Service implements SensorEventListener{
                         fastSamplingThread.quit();
                         fastSamplingThread = null;
                         fastSamplingHandler = null;
+                        accel.delete();
+                        gyr.delete();
+                        linearAcc.delete();
+                        grav.delete();
+                        rot.delete();
                     }
                     if(sm != null) {
                         stopListener();
@@ -144,42 +149,6 @@ public class SensorHandler extends Service implements SensorEventListener{
         return Service.START_STICKY;
     }
 
-   /* @Override
-    protected void onHandleIntent(@Nullable Intent intent) {
-        Log.d(TAG, "OnHandleIntent SensorHandler");
-        if(intent.getAction() != null && intent.getAction().compareTo("Command") == 0) {
-            int command = intent.getIntExtra("command_key", -1);
-            switch(command) {
-                case Configuration.START:
-                    Log.d(TAG, "Start case");
-                    counter = 0;
-                    initializeSensorHandler();
-                    //Start the sensorListener with a low sampling frequency and initialize the detection timer
-                    if(startListener(SensorManager.SENSOR_DELAY_NORMAL)) {
-                        initializeDetectionTimer();
-                        Log.d(TAG, "Detection Activated");
-                    }
-                    else
-                        Log.d(TAG,"Error in starting sensors listeners");
-                    break;
-                case Configuration.STOP:
-                    Log.d(TAG, "SensorHandlerService Stopped");
-                    //When FastSampling is active the related timer must be cancelled before to stop the service
-                    if(started)
-                        timerFastSampling.cancel();
-                    Log.d(TAG, "SensorManager: "+sm);
-                    if(sm != null) {
-                        stopListener();
-                        timerDetection.cancel();
-                    }
-                    break;
-                default:
-                    Log.d(TAG, "Default Case");
-                    break;
-            }
-        }
-    }
-*/
     private void initializeSensorHandler() {
         Log.d(TAG, "Initialize sensor handler");
         started = false;

@@ -7,6 +7,8 @@ package it.unipi.covidapp;
 
 import android.app.IntentService;
 import android.content.Intent;
+import android.os.Binder;
+import android.os.IBinder;
 import android.util.Log;
 
 import androidx.annotation.Nullable;
@@ -15,6 +17,10 @@ import androidx.annotation.Nullable;
 public class ClassificationService extends IntentService {
 
     private String TAG = "ClassificationService";
+
+    private final IBinder binder = new LocalBinder();
+    private ServiceCallbacks serviceCallbacks;
+
     private boolean status;
     private FeatureExtraction fe;
     private RandomForestClassifier rfc;
@@ -24,6 +30,13 @@ public class ClassificationService extends IntentService {
     public ClassificationService() {
         super("ClassificationService");
 
+    }
+
+    //Class used for the client Binder
+    public class LocalBinder extends Binder {
+        ClassificationService getService() {
+            return ClassificationService.this;
+        }
     }
 
     @Override
@@ -48,11 +61,18 @@ public class ClassificationService extends IntentService {
             if(activity == 1.0) {
                 Log.d(TAG, "WASHING_HANDS");
                 intentResult.putExtra("activity_key","WASHING_HANDS");
-
+                if(serviceCallbacks != null) {
+                    Log.d(TAG, "setBackground");
+                    serviceCallbacks.setBackground("GREEN");
+                }
             }
             else if(activity == 0.0) {
                 Log.d(TAG,"OTHERS");
                 intentResult.putExtra("activity_key","OTHERS");
+                if(serviceCallbacks != null) {
+                    Log.d(TAG, "setBackground");
+                    serviceCallbacks.setBackground("RED");
+                }
             }
             startService(intentResult);
         }
@@ -68,7 +88,15 @@ public class ClassificationService extends IntentService {
                 Log.d(TAG, "Counter value not correct");
 
         }
+    }
 
+    @Nullable
+    @Override
+    public IBinder onBind(Intent intent) {
+        return binder;
+    }
 
+    public void setCallbacks(ServiceCallbacks callbacks) {
+        serviceCallbacks = callbacks;
     }
 }
